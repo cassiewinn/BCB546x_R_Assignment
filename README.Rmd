@@ -1,0 +1,215 @@
+---
+title: "Cassie Winn R Assignment"
+output: html_document
+---
+
+#Part I
+##Data Inspection
+###Read In Files
+
+```{r }
+library(tidyverse)
+genotypes <- read_tsv("./data/fang_et_al_genotypes.txt")
+snp_position <- read_tsv("./data/snp_position.txt")
+```
+###Determine File Size
+Use file.info to get size of file in bytes, whether the file is a directory, last status change and last access times, user ID of the file's owner, username, group name, and other info.
+```{r}
+file.info("./data/fang_et_al_genotypes.txt")
+file.info("./data/snp_position.txt")
+```
+
+If you just wanted file size in bytes use the function file.size()
+```{r}
+file.size("./data/fang_et_al_genotypex.txt")
+file.size("./data/snp_position.txt")
+```
+
+
+###Determine Number of Lines 
+Simply type the name of the dataframe and it will give the dimensions for lines x columns (example: "A tibble: 983 x 15")
+
+```{r}
+genotypes
+snp_position
+```
+Or, use the function nrow() to give the number of rows/lines in a dataframe
+```{r}
+nrow(genotypes)
+nrow(snp_position)
+```
+
+
+###Determine Number of Columns
+Use ncol() function to determine number of columns in a dataframe
+```{r}
+ncol(genotypes)
+ncol(snp_position)
+```
+
+##Data Processing
+###Extracting Info from Files
+
+First, I extracted the maize and teosinte data and made two new corresponding files
+
+```{r}
+maize_genotypes <- subset(genotypes, Group == "ZMMIL" | Group == "ZMMLR" | Group == "ZMMMR")
+teosinte_genotypes <- subset (genotypes, Group == "ZMPBA" | Group == "ZMPIL" | Group == "ZMPJA")
+```
+
+###Transpose 
+To transpose the data we can use function t()
+```{r}
+transposed_maize <- as.data.frame(t(maize_genotypes))
+transposed_teosinte <- as.data.frame(t(teosinte_genotypes))
+```
+
+
+###Format Genotype Files and Sort
+The transposed data does not include the header in the first column, so we need to add that in. 
+
+```{r}
+if(!require("tibble")) install.packages("tibble")
+library(tibble)
+
+names(transposed_maize) <- lapply(transposed_maize[1,], as.character)
+transposed_maize <- transposed_maize [-1,]
+
+names(transposed_teosinte) <- lapply(transposed_teosinte[1, ], as.character)
+transposed_teosinte <- transposed_teosinte[-1,]
+
+transposed_maize <- rownames_to_column(transposed_maize, var="SNP_ID")
+transposed_teosinte <- rownames_to_column(transposed_teosinte, var="SNP_ID")
+
+```
+
+We then sort the files by SNP_ID. To do that use the dplyr function arrange()
+```{r}
+if(!require("dplyr")) install.packages("dplyr")
+library(dplyr)
+
+transposed_teosinte <- arrange(transposed_teosinte, SNP_ID) 
+transposed_maize <- arrange(transposed_maize, SNP_ID)
+```
+
+###Format and Sort SNP File
+First, I cut out the columns of snp_position.txt that are needed (SNP_ID, Chromosome and Position) and compiled them in one file in the order desired.
+
+```{r}
+snp_ID_chro_pos <- snp_position[, c("SNP_ID", "Chromosome", "Position")]
+```
+
+Before the SNP file can be joined with genotype files, it must be sorted by SNP_ID as well:
+
+```{r}
+snp_ID_chro_pos <- arrange(snp_ID_chro_pos, SNP_ID) 
+```
+
+###Join SNP and Genotype Files
+```{r}
+teosinte_join <- merge(snp_ID_chro_pos,transposed_teosinte, by.x="SNP_ID", by.y="SNP_ID", all = TRUE)
+
+maize_join <- merge(snp_ID_chro_pos,transposed_maize, by.x="SNP_ID", by.y="SNP_ID", all = TRUE)
+
+```
+
+We then need to remove the two rows that came from the genotype files that are not informative (Group and JG_OTU). 
+```{r}
+teosinte_join <- subset(teosinte_join, !(teosinte_join$Chromosome == "unknown") | !(teosinte_join$Chromosome =="multiple"))
+
+maize_join <- subset(maize_join, !(maize_join$Chromosome == "unknown") | !(maize_join$Chromosome == "multiple"))
+```
+
+###Extract Data for Input Files
+Create 10 files (1 for each chromosome) where SNPs are ordered based on increasing position and missing data encoded by this symbol: ? 
+
+First, arrange the files with position sorted in ascending order
+```{r}
+teosinte_join_ascend <- arrange(teosinte_join, Position)
+maize_join_ascend <- arrange(maize_join, Position)
+```
+
+To create the 10 files (1 for each chromosome) we use a for loop. First, I split the dataframe into different chromosomes. Then, I create a new variable with the names from the split file. Then, I use a for loop to create the files for each Chromosome.
+
+```{r}
+setwd("./files/Maize")
+maize_split <- split(maize_join_ascend, maize_join_ascend$Chromosome)
+maize_names <- names(maize_split)
+for(myname in maize_names){
+  savedname = paste0('Maize_Chr_', myname, '_increasing', '.txt')
+  write.table(maize_split[[myname]], file =savedname, quote = FALSE, sep = "\t", row.names=FALSE)
+}
+```
+
+```{r}
+setwd("./files/Teosinte")
+teosinte_split <- split(teosinte_join_ascend, teosinte_join_ascend$Chromosome)
+teosinte_names <- names(teosinte_split)
+for(myname in teosinte_names){
+  savedname = paste0('Teosinte_Chr_', myname, '_increasing', '.txt')
+write.table(teosinte_split[[myname]], file =savedname, quote = FALSE, sep = "\t", row.names=FALSE)
+}
+```
+
+Create 10 files (1 for each chromosome) where SNPs are ordered based on decreasing position and missing data is encoded by this symbol: - 
+
+First, I order the dataframe in decreasing order
+```{r}
+teosinte_join_descend <- arrange(teosinte_join, desc(Position))
+maize_join_descend <- arrange(maize_join, desc(Position))
+```
+
+Next, I change the symbol ? to - and again create the files for each chromosome.
+```{r}
+teosinte_join_descend[] <- lapply(teosinte_join_descend, as.character)
+teosinte_join_descend[teosinte_join_descend == '?/?'] <- '-/-'
+
+maize_join_descend[] <- lapply(maize_join_descend, as.character)
+maize_join_descend[maize_join_descend == '?/?'] <- '-/-'
+
+```
+
+```{r}
+setwd("./files/Maize")
+maize_split2 <- split(maize_join_descend, maize_join_descend$Chromosome)
+maize_names2 <- names(maize_split2)
+for(myname in maize_names2){
+  savedname = paste0('Maize_Chr_', myname, '_decreasing', '.txt')
+  write.table(maize_split2[[myname]], file =savedname, quote = FALSE, sep = "\t", row.names=FALSE)
+}
+```
+
+```{r}
+setwd("./files/Teosinte")
+teosinte_split2 <- split(teosinte_join_descend, teosinte_join_descend$Chromosome)
+teosinte_names2 <- names(teosinte_split2)
+for(myname in teosinte_names2){
+  savedname = paste0('Teosinte_Chr_', myname, '_decreasing', '.txt')
+write.table(teosinte_split2[[myname]], file =savedname, quote = FALSE, sep = "\t", row.names=FALSE)
+}
+```
+
+
+#Part 2
+
+Load required packages
+```{r}
+if (!require("ggplot2")) install.packages("ggplot2")
+library(ggplot2)
+
+if(!require("tibble")) install.packages("tibble")
+library(tibble)
+
+if (!require("reshape2")) install.packages("reshape2")
+library(reshape2)
+
+if(!require("dplyr")) install.packages("dplyr")
+library(dplyr)
+
+if (!require("plyr")) install.packages("plyr")
+library(plyr)
+
+```
+
+###SNPs per chromosome
+Plot the total number of SNPs in our dataset on each chromosome. What groups contribute most of these SNPs?
