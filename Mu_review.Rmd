@@ -1,0 +1,142 @@
+---
+title: "Mu_review.Rmd"
+author: "Qi Mu"
+date: "October 14, 2018"
+output: html_document
+---
+
+# Part I
+## Data Inspection
+It is great to have the file size inspected.`file.info` is a really nice function. However, `file.size` somehow did not work for `fang_et_al_genotype.txt` file. This may need to inspect a bit. 
+`nrow` and `ncol` are nice functions to use.
+
+```{r}
+file.size("./data/fang_et_al_genotypex.txt") # This did not work, return 'NA', also shown in your R markdown HTTP file.
+file.size("./data/snp_position.txt")
+```
+
+Some other file inspections can be added, such as understanding the data types, colnames, etc. :
+```{r}
+is.list(snp_position)
+is.matrix(snp_position)
+is.data.frame(snp_position)
+colnames(snp_position)
+```
+
+## Data Processing
+
+`subset` function is generally ok to use in extracting certain types from file. However, if we want to use the function we learnt in this class, `filter` is a `dplyr` function, while `subset` is a `base` R fuction.Below is an example of using `filter`, which is very similar to `subset`.
+
+```{r for example}
+Maize <- filter(Genotypes, Group =='ZMMIL'|Group=='ZMMLR'|Group=='ZMMMR')
+```
+
+It is ok to check if `tibble`, `dplyr`, `ggplot2` are installed and call the libraries. But they are actually part of the `tidyverse` package, which was load in the first step. So it is not necessary to load their libraries again. 
+`dataframe` and `tibble` are similar, but `tibble` is easier for visualization of the dataframe. So if you want to check the date after transformation, without showing up too many colnames, `as.tibble` can be applied to the transformed table.
+
+```{r for example}
+transposed_maize <- as.tibble(transposed_maize)
+```
+
+There is another way When cutting out the columns of snp_position.txt file, a `dplyr` function `select` can be used, which keeps only the variables mentioned in your tibble.(Yes, since `dplyr` works mostly with tibble, so it has to be converted `as.tibble` first).
+
+When merging files, a `dplyr` function `inner_join` can be applied as well.
+```{r for example}
+snp_ID_chro_pos <- select(snp_position, SNP_ID, Chromosome, Position)
+maize_join<- inner_join(snp_ID_chro_pos,transposed_maize, by= "SNP_ID")
+```
+
+"We then need to remove the two rows that came from the genotype files that are not informative (Group and JG_OTU).
+teosinte_join <- subset(teosinte_join, !(teosinte_join$Chromosome == "unknown") | !(teosinte_join$Chromosome =="multiple"))
+maize_join <- subset(maize_join, !(maize_join$Chromosome == "unknown") | !(maize_join$Chromosome == "multiple"))"
+
+The title and the contents are not matching.
+
+1. The remove the two rows Group and JG_OTU, it can be done earlier before joining, it can use simplier syntex and can reduce some memory when joining.
+```{r for example}
+maize_genotypes <- maize_genotypes[,c(-2,-3)]
+```
+2. If you are removing SNPs that are matching unknown and multiple positions on chromosome, there is one more criterion should be applied: Position == "multiple". 
+```{r for example}
+maize_join<- filter(SNP_tMaize, Chromosome != 'multiple', Chromosome != 'unknown', Position != 'multiple')
+```
+
+If you would like to save the output files as .txt files, a `dplyr` function `write_tsv` can be used. I used the following funtions (with your file names):
+```{r for example}
+for (i in 1:10){
+  filename <- paste("../files/Maize", "maize_decrease_chrom_", i, ".txt", sep = "")
+  write_tsv(filter(maize_join_descend, Chromosome == i), filename, col_names = T)
+}
+```
+
+I checked your output files, they are not ordered in decreasing or ascending orders, because the position are not numeric values, the order is arranges as character. It is important to check your files, tranforming them to tibble in the earlier steps can really help viewing the results easily. I would do the following after removing multiple positions and before seperating them by chromosomes:
+```{r for example}
+maize_join$Chromosome <- as.integer(maize_join$Chromosome)
+maize_join$Position <- as.integer(maize_join$Position)
+write_tsv(genotypes_trans_join, "genotypes_trans_join.txt", col_names = T)
+```
+
+# Part II
+It is ok to load all the libraries, but really only package needed to load here is `reshape2`, all the others are part of `tidyverse`.
+
+## Question 1
+There is a confusion on what Dr.Lavrov means on 'SNPs'. Whether he means all the 985 SNP positions, all the SNPs that are varibale among each group -- in this case we should remove all those monoallelic SNPs. In his explaination on Slack, he said "each SNP position: variation within group vs. variation among groups", so I assumed he meant that we should pull out all the variable SNPs first, and then plot them. In the first part of the first question, he said to 'Plot the total number of SNPs in our dataset on each chromosome', if we are using the definition of variable SNPs, then the total 985 SNPs are only representing SNP positions. So plotting "total number of SNPs" should be all the variable SNPs in all the individuals in all the groups. It is not just the total number of "SNP positions". I found there should be in total ~1800 SNPs on chr1, ~1500 SNPs on chr2, etc (counting all samples). The second part is to view which group contribute to SNPs most on each chromosome (because it is connected with the first part, so on each chromosome should be considered). You have a plot on all the chromosomes, I would suggest to seperate them into different chromosomes. 
+If it is useful to you, I have attached my script for pulling out the variable SNPs, reshape the data, and ploting here:
+```{r my script for Part II question 1}
+# Load in data, reduce unnecessary columns
+Geno <- read_tsv("../Data/fang_et_al_genotypes.txt", col_names = T )
+SNP <- read_tsv("../Data/snp_position.txt")
+Geno2 <- Geno [,-2] # to remove col 2 - unnecessary information
+Geno2
+RedSNP <- SNP[c(1,3,4)]
+# To have all the samples in the same column, so all the samples can be counted in plotting
+Geno2_melt <- melt(Geno2, id = c("Sample_ID", "Group"))
+colnames(Geno2_melt)[3] <- "SNP_ID"
+colnames(Geno2_melt)[4] <- "SNP_call"
+head(Geno2_melt)
+# To merge the SNP information (Chromosme, Position) with al the samples
+Geno2_melt_SNPinfo <- merge(Geno2_melt,RedSNP, by = "SNP_ID")
+# remove muliple and unknown SNPs
+Geno2_melt_SNPinfo <- filter(Geno2_melt_SNPinfo, Chromosome != 'multiple', Chromosome != 'unknown', Position != 'multiple')
+# make chromosome as integar instead of character and sort
+Geno2_melt_SNPinfo$Chromosome = as.integer(Geno2_melt_SNPinfo$Chromosome)
+Geno2_melt_SNPinfo <- arrange(Geno2_melt_SNPinfo, Chromosome)
+head(Geno2_melt_SNPinfo)
+# To show all the types of genotype(SNP_call) on each SNP position, and count how many samples are in for each genotype
+Group_SNP_counts <- Geno2_melt_SNPinfo %>%
+  group_by (Group, SNP_ID, SNP_call, Chromosome) %>%
+  summarise (row_counts = n()) 
+head(Group_SNP_counts, n=12L)
+# To show the counts of types of genotypes
+Group_variableSNP <- Group_SNP_counts %>%
+  group_by (Group, SNP_ID, Chromosome) %>%
+  summarise(SNP_call_types = n())
+head(Group_variableSNP)
+# To extract the SNPs that have more than 1 genotypes in SNP_call, and these SNPs are what we needed as SNPs
+VariableSNPs <- filter(Group_variableSNP, SNP_call_types>1)
+head(VariableSNPs, n=12L)
+SNPbyChr <- VariableSNPs %>%
+  group_by (Chromosome, Group) %>%
+  summarise(SNPcounts =n())
+# To count how many SNPs are variable in each group on each chromosome
+SNPbyChr <- arrange(SNPbyChr, Chromosome, desc(SNPcounts))
+SNPbyChr
+# To adds up all the SNPs from all indivisuals from all Groups based on choromosomes
+SNPbyChr2 <- VariableSNPs %>%
+  group_by(Chromosome) %>%
+  summarise(SNPcountsAllGroup=n())
+SNPbyChr2
+# To plot with all the SNPs in each chromosome, including all the groups
+ggplot(data = SNPbyChr2) + geom_col (mapping=aes(x=Chromosome, y=SNPcountsAllGroup)) + scale_x_continuous(breaks = c(1:10))
+# To plot the number of SNPs from each group in each chromosome. Each group is color coded differently.
+ggplot(data = SNPbyChr) + geom_point (mapping=aes(x=Chromosome, y=SNPcounts, color= Group),size=4,alpha=0.7) + scale_x_continuous(breaks = c(1:10))
+```
+
+You don't have to change your script since he didn't explain it very well what SNPs really means. But I would suggest you to include the number of SNPs each group contributed on different chromosomes.
+My figures are in https://github.com/mumu3489/R_Assignment if you would like to see how they look like.
+
+## Question 2
+In the assignment description, we are requried to make the bars fill the whole y-axis: "For groups normalize the height of individual bars using one of the ggplot "position adjustments" options." I know that with stat="identify" it is not possible to use position = "fill" to adjust, so I calculated the proporation for each, and plot the propotion data to normalize the bars.
+
+
+
