@@ -1,0 +1,38 @@
+---
+title: "Cavazos_Review for Cassie_Winn"
+author: "Brittany Cavazos"
+date: "October 16, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### **Comments on inspecting**
+
+The data files were inspected to using functions like `file.info`, `file.size`, `nrow`, `dim`, etc.
+The `file.size` function did not work on the fang data because of a typo - "fang_et_al_genotypex.txt"; easily fixable.
+In reference to line 30, typing dataframe name, or any object name, will output entire object. Because it's a tibble it will tell you the dimensions at the top but if you wanted just object dimensions, you can use the function `dim` which you use further down.
+
+
+### **Comments on writing data**
+
+Maize and teosinte data were split and subsetted correctly. Files are joined using `merge`.
+files are not appropriately sorted. It looks like R interpreted position as alpha numeric so even though its separated by chromosome, its not sorted in position. The missing data was coded correctly and the loop successful output all files asked for. 
+
+When I ran the file writing code (l 179-85), I got an error `Error in file(file, ifelse(append, "a", "w")) : cannot open the connection` I'm not sure if this is something I did or something with your code. 
+(^ actually I think this was because I had one of the files open in excel so false alarm.)
+
+### **Comments on graphing**
+
+Since you already loaded tidyverse in the beginning, you don't need to reload the plyr and dplyr packages. It really is no big deal --the only time you would have to worry is if one package had a function of the same name it would 'mask' the one that was loaded previously. It will tell you this in a warning though.
+
+The plot of total snps per genotypes came out correctly. And same with groups.
+The plot with the hetero and homozygous numbers came out. 
+
+The visualization of their choice showed Most common genotypes across loci and individuals and Recombination Rate per Sample_ID (although I'm not sure how to interpret that last graph w/ recombination). 
+
+
+
+  
